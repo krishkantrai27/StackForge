@@ -13,18 +13,7 @@ bin/
 .vscode/
 .idea/
 *.user
-.gemini/
 
-# Agent/AI folders
-.agent/
-.agents/
-.gsd/
-adapters/
-docs/
-scripts/
-GSD-STYLE.md
-PROJECT_RULES.md
-model_capabilities.yaml
 
 # Environment files
 .env
