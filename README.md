@@ -1,8 +1,8 @@
 # Vector_AI — Vector Database + RAG Engine from Scratch in Java
 
-Zero-dependency **vector database** in pure Java. Three search engines (**HNSW**, **KD-Tree**, **Brute Force**) side by side, a live web UI, and a **RAG pipeline** powered by local LLMs through Ollama.
+Zero-dependency **vector database** in pure Java. **HNSW**, **KD-Tree** and **Brute Force** search side by side, live web UI with PCA visualization, and a **RAG pipeline** over local LLMs via Ollama.
 
-> Educational build showing how Pinecone, Weaviate, Chroma and Milvus work under the hood.
+> Built to understand how Pinecone, Weaviate, Chroma and Milvus work under the hood — every index and the HTTP server are written from scratch.
 
 ![Java](https://img.shields.io/badge/Java-17%2B-orange)
 ![Dependencies](https://img.shields.io/badge/Dependencies-0-brightgreen)
@@ -11,22 +11,61 @@ Zero-dependency **vector database** in pure Java. Three search engines (**HNSW**
 
 ---
 
+## At a Glance
+
+| | |
+|---|---|
+| **Problem** | Understand and compare nearest-neighbor search used by production vector DBs |
+| **Solution** | Three index implementations behind one API, plus an end-to-end RAG pipeline |
+| **Stack** | Java 17+, built-in HTTP server, vanilla JS + Canvas, Ollama |
+| **Dependencies** | None — no Maven, no Gradle, no frameworks |
+| **Run** | `java Main.java` → `http://localhost:8080` |
+
+### Engineering Highlights
+
+- HNSW multilayer graph: greedy descent, beam search (`ef_construction=200`), bidirectional linking
+- KD-Tree with hyperplane pruning; demonstrates curse of dimensionality against HNSW
+- Pluggable distance metrics: Cosine, Euclidean, Manhattan
+- Overlapping 250-word chunking + 768D embeddings (`nomic-embed-text`)
+- RAG: query embedding → top-3 retrieval → grounded generation (`llama3.2`)
+- REST API with CRUD, benchmark and graph-introspection endpoints
+- Live PCA 16D → 2D scatter plot showing semantic clusters
+
+---
+
 ## Table of Contents
 
-1. [Features](#features)
-2. [System Architecture](#system-architecture)
-3. [Request Flow](#request-flow)
-4. [Document Ingestion Flow](#document-ingestion-flow)
-5. [RAG Pipeline Flow](#rag-pipeline-flow)
-6. [Algorithm Flowcharts](#algorithm-flowcharts)
-7. [Class Structure](#class-structure)
-8. [Tech Stack](#tech-stack)
-9. [Setup](#setup)
+1. [Quick Start](#quick-start)
+2. [Features](#features)
+3. [System Architecture](#system-architecture)
+4. [Request Flow](#request-flow)
+5. [Document Ingestion Flow](#document-ingestion-flow)
+6. [RAG Pipeline Flow](#rag-pipeline-flow)
+7. [Algorithms](#algorithms)
+8. [Class Structure](#class-structure)
+9. [Full Setup (Windows)](#full-setup-windows)
 10. [Usage](#usage)
 11. [REST API](#rest-api)
 12. [Project Structure](#project-structure)
 13. [Troubleshooting](#troubleshooting)
-14. [License](#license)
+14. [Author](#author)
+15. [License](#license)
+
+---
+
+## Quick Start
+
+```powershell
+ollama pull nomic-embed-text
+ollama pull llama3.2
+git clone https://github.com/krishkantrai27/Vector_AI.git
+cd Vector_AI
+java Main.java
+```
+
+Open http://localhost:8080
+
+Requires Java 17+ and Ollama. Demo-vector search works without Ollama; Documents and Ask AI tabs need it.
 
 ---
 
@@ -37,9 +76,9 @@ Zero-dependency **vector database** in pure Java. Three search engines (**HNSW**
 | 3 search algorithms | HNSW, KD-Tree, Brute Force — run all three, compare speed |
 | 3 distance metrics | Cosine, Euclidean, Manhattan |
 | 16D demo vectors | 20 preloaded vectors across CS, Math, Food, Sports |
-| PCA scatter plot | Live 2D projection of semantic space |
+| PCA scatter plot | Live 2D projection; four categories form distinct clusters |
 | Real embeddings | Any text → `nomic-embed-text` → 768D vector |
-| RAG pipeline | Question → HNSW retrieval → `llama3.2` answer |
+| RAG pipeline | Question → HNSW retrieval → `llama3.2` answer with source chips |
 | REST API | Insert, delete, search, benchmark, hnsw-info, doc ingest, ask |
 
 ---
@@ -129,7 +168,7 @@ flowchart TD
     D --> E["OllamaClient.embed"]
     E --> F["nomic-embed-text"]
     F --> G["768D vector"]
-    G --> H["DocumentDB.insert"]
+    G --> H["DocumentDB insert"]
     H --> I["HNSW Index"]
     I --> J{"More chunks?"}
     J -->|"Yes"| D
@@ -155,27 +194,25 @@ sequenceDiagram
     H-->>S: 3 nearest chunks
     S->>S: build prompt = context + question
     S->>L: generate answer
-    L-->>S: answer text
+    L-->>S: answer grounded in documents
     S-->>U: answer + context chips
-```
-
-```mermaid
-flowchart LR
-    Q["Question"] --> EQ["Embed"]
-    EQ --> RS["HNSW Search k=3"]
-    RS --> CT["Context Chunks"]
-    CT --> PR["Prompt Builder"]
-    Q --> PR
-    PR --> GN["llama3.2"]
-    GN --> AN["Answer"]
-    CT --> CC["Context Chips in UI"]
 ```
 
 ---
 
-## Algorithm Flowcharts
+## Algorithms
 
-### HNSW Insert
+### Overview
+
+| Algorithm | Search | Exact | Best For |
+|---|---|---|---|
+| Brute Force | O(N·d) | Yes | Baseline, small data |
+| KD-Tree | O(log N), degrades in high-D | Yes | Low dimensions (≤20D) |
+| HNSW | O(log N) | Approximate | High dimensions, production |
+
+### HNSW — Hierarchical Navigable Small World
+
+Multilayer graph. Each node gets a random max layer. Layer 0 holds every node with dense links; upper layers are exponentially sparser with long-range links — a highway that gets the search near the target fast, then layer 0 refines it.
 
 ```mermaid
 flowchart TD
@@ -198,8 +235,6 @@ flowchart TD
     N --> O
 ```
 
-### HNSW Search
-
 ```mermaid
 flowchart TD
     A["Query vector"] --> B["Entry point at top layer"]
@@ -214,7 +249,9 @@ flowchart TD
     H --> I["Return top-K"]
 ```
 
-### KD-Tree Search
+### KD-Tree
+
+Binary space partitioning, cycling through dimensions. Search prunes a subtree when its closest possible point cannot beat the current best.
 
 ```mermaid
 flowchart TD
@@ -238,25 +275,21 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    A["Query"] --> B["Compute distance to every vector"]
+    A["Query"] --> B["Distance to every vector"]
     B --> C["Sort ascending"]
     C --> D["Return top-K"]
 ```
 
-### Complexity
+### Why HNSW Wins at High Dimensions
 
-| Algorithm | Search | Exact | Best For |
-|---|---|---|---|
-| Brute Force | O(N·d) | Yes | Baseline, small data |
-| KD-Tree | O(log N), degrades in high-D | Yes | Low dimensions (≤20D) |
-| HNSW | O(log N) | Approximate | High dimensions, production |
+KD-Tree pruning relies on axis-aligned bounds. In high dimensions almost all space sits near the hypersphere boundary, so nothing gets pruned and it degrades toward brute force at 768D. HNSW navigates a graph and is not tied to axis-aligned partitions.
 
 ```mermaid
 flowchart LR
-    A["Dimension"] --> B{"d at most 20?"}
+    A["Dimension d"] --> B{"d at most 20?"}
     B -->|"Yes"| C["KD-Tree prunes well"]
     B -->|"No"| D["KD-Tree approaches brute force"]
-    D --> E["HNSW graph navigation unaffected"]
+    D --> E["HNSW unaffected"]
 ```
 
 ---
@@ -265,40 +298,13 @@ flowchart LR
 
 ```mermaid
 classDiagram
-    class Main {
-        +main()
-        +startServer()
-    }
-    class VectorDB {
-        +insert()
-        +delete()
-        +search()
-        +benchmark()
-    }
-    class DocumentDB {
-        +insertDocument()
-        +askQuestion()
-        +list()
-        +delete()
-    }
-    class BruteForce {
-        +search()
-    }
-    class KDTree {
-        +insert()
-        +search()
-    }
-    class HNSW {
-        +insert()
-        +search()
-        +info()
-    }
-    class OllamaClient {
-        +embed()
-        +generate()
-        +status()
-        +genModel
-    }
+    class Main
+    class VectorDB
+    class DocumentDB
+    class BruteForce
+    class KDTree
+    class HNSW
+    class OllamaClient
 
     Main --> VectorDB
     Main --> DocumentDB
@@ -309,22 +315,18 @@ classDiagram
     DocumentDB --> OllamaClient
 ```
 
----
-
-## Tech Stack
-
-| Layer | Technology |
+| Class | Role |
 |---|---|
-| Backend | Java 17+, built-in HTTP server, no external libraries |
-| Indexes | HNSW, KD-Tree, Brute Force |
-| Frontend | HTML, CSS, JavaScript, Canvas (PCA scatter plot) |
-| Embeddings | Ollama `nomic-embed-text` (768D) |
-| LLM | Ollama `llama3.2` |
-| Visualization | PCA 16D → 2D |
+| `BruteForce` | Exact baseline, O(N·d) |
+| `KDTree` | Exact, axis-aligned partitioning |
+| `HNSW` | Approximate, multilayer small-world graph |
+| `VectorDB` | Unified interface over all three (16D demo vectors) |
+| `DocumentDB` | HNSW-only index for Ollama embeddings (768D) |
+| `OllamaClient` | HTTP client → `/api/embeddings` + `/api/generate` |
 
 ---
 
-## Setup
+## Full Setup (Windows)
 
 ### Prerequisites
 
@@ -332,7 +334,7 @@ classDiagram
 |---|---|
 | Java JDK | 17+ |
 | Git | Any |
-| Ollama | Latest, 8 GB RAM recommended |
+| Ollama | Latest; 8 GB RAM recommended (~3 GB used by models) |
 
 ### 1. Verify Java
 
@@ -343,7 +345,15 @@ javac -version
 
 Install from https://adoptium.net/ if missing.
 
-### 2. Install Ollama and Pull Models
+### 2. Install Git
+
+Download from https://git-scm.com/download/win, then:
+
+```powershell
+git --version
+```
+
+### 3. Install Ollama and Pull Models
 
 Download from https://ollama.com, then:
 
@@ -353,25 +363,18 @@ ollama pull llama3.2
 ollama list
 ```
 
-### 3. Clone
+`nomic-embed-text` ≈ 274 MB, `llama3.2` ≈ 2 GB.
+
+### 4. Clone and Run
 
 ```powershell
 git clone https://github.com/krishkantrai27/Vector_AI.git
 cd Vector_AI
-```
-
-### 4. Run
-
-```powershell
 javac Main.java
 java Main
 ```
 
-Or directly:
-
-```powershell
-java Main.java
-```
+Or in one step: `java Main.java`
 
 Expected output:
 
@@ -384,42 +387,31 @@ Ollama: ONLINE
 Server listening on port 8080...
 ```
 
-Open http://localhost:8080
-
-```mermaid
-flowchart LR
-    A["Install Java"] --> B["Install Ollama"]
-    B --> C["Pull 2 models"]
-    C --> D["Clone repo"]
-    D --> E["java Main.java"]
-    E --> F["Open localhost:8080"]
-```
-
 ---
 
 ## Usage
 
 ### Tab 1 — Search
 
-1. Enter a concept: `binary tree`, `sushi`, `basketball`, `calculus`
+1. Enter a concept: `Green Tea`, `Banana`, `Cricket`, `Differentiation`
 2. Pick algorithm: HNSW / KD-Tree / Brute Force
 3. Pick metric: Cosine / Euclidean / Manhattan
-4. Click **SEARCH** — results with distances, match glows on scatter plot
-5. Click **COMPARE ALL ALGOS** — speed comparison of all three
+4. **SEARCH** — results with distances; match glows on scatter plot
+5. **COMPARE ALL ALGOS** — speed comparison of all three
 
 ### Tab 2 — Documents
 
-1. Enter a title
-2. Paste text
-3. Click **EMBED & INSERT**
-4. Text is split into overlapping 250-word chunks, each embedded and indexed in HNSW
+1. Enter a title, e.g. `Operating Systems Notes`
+2. Paste lecture notes, textbook text or articles
+3. **EMBED & INSERT**
+4. Text is split into overlapping 250-word chunks; each is embedded and stored in HNSW
 
 ### Tab 3 — Ask AI
 
 1. Insert documents first
 2. Type a question
-3. Click **ASK AI**
-4. Answer streams in; click context chips to inspect retrieved chunks
+3. **ASK AI**
+4. Answer streams in with typewriter effect; click context chips to inspect retrieved chunks
 
 ---
 
@@ -447,7 +439,7 @@ Base URL: `http://localhost:8080`
 | GET | `/doc/list` | — | List chunks |
 | DELETE | `/doc/delete/:id` | — | Delete chunk |
 | POST | `/doc/ask` | `{"question":"...","k":3}` | Retrieve + generate |
-| GET | `/status` | — | Ollama status |
+| GET | `/status` | — | Ollama status and models |
 
 ### Examples
 
@@ -479,10 +471,10 @@ Vector_AI/
 | Problem | Fix |
 |---|---|
 | `Ollama: OFFLINE` | Run `ollama serve` |
-| First embed very slow | Model loading, wait ~2 min |
+| First embed very slow | Model loading on first use, wait ~2 min |
 | `java: command not found` | Add JDK 17+ to PATH |
 | Port 8080 busy | `netstat -ano \| findstr 8080` then `taskkill /PID <pid> /F` |
-| Slow LLM answers | Use `llama3.2:1b` |
+| Slow LLM answers | Normal on laptop CPU (10–30 s); use `llama3.2:1b` |
 
 Faster model:
 
@@ -497,6 +489,13 @@ public String genModel = "llama3.2:1b";
 ```
 
 Recompile and restart.
+
+---
+
+## Author
+
+**Krish Kant Rai** — Full Stack Java Developer (Spring Boot, React.js, MySQL)
+LinkedIn: [linkedin.com/in/krishkantrai](https://linkedin.com/in/krishkantrai) · GitHub: [krishkantrai27](https://github.com/krishkantrai27)
 
 ---
 
