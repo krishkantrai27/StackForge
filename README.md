@@ -494,8 +494,10 @@ Recompile and restart.
 
 ## Author
 
-**Krish Kant Rai** — Full Stack Java Developer (Spring Boot, React.js, MySQL)
-LinkedIn: [linkedin.com/in/krishkantrai](https://linkedin.com/in/krishkantrai) · GitHub: [krishkantrai27](https://github.com/krishkantrai27)
+**Krish Kant Rai**
+LinkedIn: [linkedin.com/in/krishkantrai](https://linkedin.com/in/krishkantrai)
+GitHub: [krishkantrai27](https://github.com/krishkantrai27)
+LeetCode:[Krish Kant Rai](https://leetcode.com/u/krishkant/)
 
 ---
 
