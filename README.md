@@ -1,137 +1,380 @@
-# VectorDB — Build a Vector Database from Scratch in Java
+# Vector_AI — Vector Database + RAG Engine from Scratch in Java
 
-A fully working **Vector Database** built from scratch in Java with a web UI.  
-Implements **HNSW**, **KD-Tree**, and **Brute Force** search algorithms side-by-side, plus a **RAG pipeline** powered by a local LLM via Ollama.
+Zero-dependency **vector database** in pure Java. Three search engines (**HNSW**, **KD-Tree**, **Brute Force**) side by side, a live web UI, and a **RAG pipeline** powered by local LLMs through Ollama.
 
-> Built as an educational project to show how production vector databases like Pinecone, Weaviate, and Chroma actually work under the hood.
+> Educational build showing how Pinecone, Weaviate, Chroma and Milvus work under the hood.
+
+![Java](https://img.shields.io/badge/Java-17%2B-orange)
+![Dependencies](https://img.shields.io/badge/Dependencies-0-brightgreen)
+![Ollama](https://img.shields.io/badge/LLM-Ollama-blue)
+![License](https://img.shields.io/badge/License-MIT-lightgrey)
 
 ---
 
-## What This Project Does
+## Table of Contents
+
+1. [Features](#features)
+2. [System Architecture](#system-architecture)
+3. [Request Flow](#request-flow)
+4. [Document Ingestion Flow](#document-ingestion-flow)
+5. [RAG Pipeline Flow](#rag-pipeline-flow)
+6. [Algorithm Flowcharts](#algorithm-flowcharts)
+7. [Class Structure](#class-structure)
+8. [Tech Stack](#tech-stack)
+9. [Setup](#setup)
+10. [Usage](#usage)
+11. [REST API](#rest-api)
+12. [Project Structure](#project-structure)
+13. [Troubleshooting](#troubleshooting)
+14. [License](#license)
+
+---
+
+## Features
 
 | Feature | Description |
 |---|---|
-| **3 Search Algorithms** | HNSW (production-grade), KD-Tree, Brute Force — run all three and compare speed |
-| **3 Distance Metrics** | Cosine similarity, Euclidean distance, Manhattan distance |
-| **16D Demo Vectors** | 20 pre-loaded semantic vectors across 4 categories (CS, Math, Food, Sports) |
-| **2D PCA Scatter Plot** | Live visualization of semantic space — watch clusters form |
-| **Real Document Embedding** | Paste any text → Ollama embeds it with `nomic-embed-text` (768D) |
-| **RAG Pipeline** | Ask questions about your documents → HNSW retrieves context → local LLM answers |
-| **Full REST API** | CRUD endpoints: insert, delete, search, benchmark, hnsw-info |
+| 3 search algorithms | HNSW, KD-Tree, Brute Force — run all three, compare speed |
+| 3 distance metrics | Cosine, Euclidean, Manhattan |
+| 16D demo vectors | 20 preloaded vectors across CS, Math, Food, Sports |
+| PCA scatter plot | Live 2D projection of semantic space |
+| Real embeddings | Any text → `nomic-embed-text` → 768D vector |
+| RAG pipeline | Question → HNSW retrieval → `llama3.2` answer |
+| REST API | Insert, delete, search, benchmark, hnsw-info, doc ingest, ask |
 
 ---
 
-## How It Works
+## System Architecture
 
+```mermaid
+flowchart TB
+    subgraph Client["Browser — index.html"]
+        T1["Tab 1: Search"]
+        T2["Tab 2: Documents"]
+        T3["Tab 3: Ask AI"]
+        VIZ["PCA Scatter Plot"]
+    end
+
+    subgraph Server["Main.java — HTTP Server :8080"]
+        ROUTER["REST Router"]
+        subgraph Demo["VectorDB — 16D"]
+            BF["BruteForce"]
+            KD["KDTree"]
+            HN["HNSW"]
+        end
+        subgraph Docs["DocumentDB — 768D"]
+            DH["HNSW Index"]
+            CH["Chunker"]
+        end
+        OC["OllamaClient"]
+    end
+
+    subgraph Ollama["Ollama — Local AI"]
+        EMB["nomic-embed-text"]
+        LLM["llama3.2"]
+    end
+
+    T1 --> ROUTER
+    T2 --> ROUTER
+    T3 --> ROUTER
+    ROUTER --> Demo
+    ROUTER --> Docs
+    Docs --> OC
+    OC --> EMB
+    OC --> LLM
+    ROUTER --> VIZ
 ```
-Your Text
-    │
-    ▼
-Ollama (nomic-embed-text)          ← converts text to a 768-dimensional vector
-    │
-    ▼
-HNSW Index (Java)                  ← indexes the vector in a multilayer graph
-    │
-    ▼
-Semantic Search                    ← finds nearest neighbors in vector space
-    │
-    ▼
-Ollama (llama3.2)                  ← reads retrieved chunks, generates an answer
-    │
-    ▼
-Answer
+
+---
+
+## Request Flow
+
+```mermaid
+flowchart TD
+    A["HTTP Request"] --> B{"Route?"}
+    B -->|"GET /search"| C["Parse v, k, metric, algo"]
+    B -->|"GET /benchmark"| D["Run all 3 algorithms"]
+    B -->|"POST /insert"| E["Insert into BF + KD + HNSW"]
+    B -->|"DELETE /delete/:id"| F["Remove from all indexes"]
+    B -->|"POST /doc/insert"| G["Document Ingestion Flow"]
+    B -->|"POST /doc/ask"| H["RAG Pipeline Flow"]
+    B -->|"GET /status"| I["Ping Ollama"]
+
+    C --> J{"algo?"}
+    J -->|"hnsw"| K["HNSW search"]
+    J -->|"kdtree"| L["KD-Tree search"]
+    J -->|"brute"| M["Brute Force scan"]
+
+    K --> N["Top-K results + latency"]
+    L --> N
+    M --> N
+    D --> O["Per-algorithm time + results"]
+
+    N --> P["JSON Response"]
+    O --> P
+    E --> P
+    F --> P
+    I --> P
 ```
 
-**HNSW (Hierarchical Navigable Small World)** is the same algorithm used by Pinecone, Weaviate, Chroma, and Milvus. It builds a multilayer graph where each layer is progressively sparser — searches start at the top layer and zoom in, achieving O(log N) complexity instead of O(N) for brute force.
+---
+
+## Document Ingestion Flow
+
+```mermaid
+flowchart TD
+    A["Title + Text"] --> B["POST /doc/insert"]
+    B --> C["Split into overlapping 250-word chunks"]
+    C --> D["For each chunk"]
+    D --> E["OllamaClient.embed"]
+    E --> F["nomic-embed-text"]
+    F --> G["768D vector"]
+    G --> H["DocumentDB.insert"]
+    H --> I["HNSW Index"]
+    I --> J{"More chunks?"}
+    J -->|"Yes"| D
+    J -->|"No"| K["Return chunk count + IDs"]
+```
 
 ---
 
-## Prerequisites
+## RAG Pipeline Flow
 
-You need **3 things** installed on your Windows laptop:
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant S as Server
+    participant E as nomic-embed-text
+    participant H as HNSW Index
+    participant L as llama3.2
 
-1. **Java JDK 17+** (JDK 21 or 25 recommended; zero external dependencies or build tools needed)
-2. **Git**
-3. **Ollama** (runs the local AI models)
+    U->>S: POST /doc/ask question, k=3
+    S->>E: embed question
+    E-->>S: 768D query vector
+    S->>H: search top-k
+    H-->>S: 3 nearest chunks
+    S->>S: build prompt = context + question
+    S->>L: generate answer
+    L-->>S: answer text
+    S-->>U: answer + context chips
+```
+
+```mermaid
+flowchart LR
+    Q["Question"] --> EQ["Embed"]
+    EQ --> RS["HNSW Search k=3"]
+    RS --> CT["Context Chunks"]
+    CT --> PR["Prompt Builder"]
+    Q --> PR
+    PR --> GN["llama3.2"]
+    GN --> AN["Answer"]
+    CT --> CC["Context Chips in UI"]
+```
 
 ---
 
-## Step-by-Step Setup (Windows)
+## Algorithm Flowcharts
 
-### Step 1 — Verify Java
+### HNSW Insert
 
-Check that Java is installed and available in your PowerShell:
+```mermaid
+flowchart TD
+    A["New vector q"] --> B["Assign random max layer L"]
+    B --> C["Start at entry point, top layer"]
+    C --> D{"layer greater than L?"}
+    D -->|"Yes"| E["Greedy descent to nearest node"]
+    E --> F["Move one layer down"]
+    F --> D
+    D -->|"No"| G["Beam search with ef_construction = 200"]
+    G --> H["Select M nearest neighbors"]
+    H --> I["Connect bidirectionally"]
+    I --> J["Prune neighbors exceeding M"]
+    J --> K{"layer greater than 0?"}
+    K -->|"Yes"| L["Move one layer down"]
+    L --> G
+    K -->|"No"| M{"L above current top?"}
+    M -->|"Yes"| N["Update entry point"]
+    M -->|"No"| O["Done"]
+    N --> O
+```
+
+### HNSW Search
+
+```mermaid
+flowchart TD
+    A["Query vector"] --> B["Entry point at top layer"]
+    B --> C{"layer greater than 0?"}
+    C -->|"Yes"| D["Greedy move to closer neighbor"]
+    D --> E{"Closer node found?"}
+    E -->|"Yes"| D
+    E -->|"No"| F["Drop one layer"]
+    F --> C
+    C -->|"No"| G["Layer 0: expand ef candidates with priority queue"]
+    G --> H["Keep best ef results"]
+    H --> I["Return top-K"]
+```
+
+### KD-Tree Search
+
+```mermaid
+flowchart TD
+    A["Query + current node"] --> B{"Node null?"}
+    B -->|"Yes"| Z["Return"]
+    B -->|"No"| C["Compute distance to node point"]
+    C --> D{"Better than current worst in top-K?"}
+    D -->|"Yes"| E["Update best list"]
+    D -->|"No"| F["Skip"]
+    E --> G["Pick near side by split dimension"]
+    F --> G
+    G --> H["Recurse near subtree"]
+    H --> I{"Hyperplane distance below worst best?"}
+    I -->|"Yes"| J["Recurse far subtree"]
+    I -->|"No"| K["Prune far subtree"]
+    J --> Z
+    K --> Z
+```
+
+### Brute Force
+
+```mermaid
+flowchart LR
+    A["Query"] --> B["Compute distance to every vector"]
+    B --> C["Sort ascending"]
+    C --> D["Return top-K"]
+```
+
+### Complexity
+
+| Algorithm | Search | Exact | Best For |
+|---|---|---|---|
+| Brute Force | O(N·d) | Yes | Baseline, small data |
+| KD-Tree | O(log N), degrades in high-D | Yes | Low dimensions (≤20D) |
+| HNSW | O(log N) | Approximate | High dimensions, production |
+
+```mermaid
+flowchart LR
+    A["Dimension"] --> B{"d at most 20?"}
+    B -->|"Yes"| C["KD-Tree prunes well"]
+    B -->|"No"| D["KD-Tree approaches brute force"]
+    D --> E["HNSW graph navigation unaffected"]
+```
+
+---
+
+## Class Structure
+
+```mermaid
+classDiagram
+    class Main {
+        +main()
+        +startServer()
+    }
+    class VectorDB {
+        +insert()
+        +delete()
+        +search()
+        +benchmark()
+    }
+    class DocumentDB {
+        +insertDocument()
+        +askQuestion()
+        +list()
+        +delete()
+    }
+    class BruteForce {
+        +search()
+    }
+    class KDTree {
+        +insert()
+        +search()
+    }
+    class HNSW {
+        +insert()
+        +search()
+        +info()
+    }
+    class OllamaClient {
+        +embed()
+        +generate()
+        +status()
+        +genModel
+    }
+
+    Main --> VectorDB
+    Main --> DocumentDB
+    VectorDB --> BruteForce
+    VectorDB --> KDTree
+    VectorDB --> HNSW
+    DocumentDB --> HNSW
+    DocumentDB --> OllamaClient
+```
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Backend | Java 17+, built-in HTTP server, no external libraries |
+| Indexes | HNSW, KD-Tree, Brute Force |
+| Frontend | HTML, CSS, JavaScript, Canvas (PCA scatter plot) |
+| Embeddings | Ollama `nomic-embed-text` (768D) |
+| LLM | Ollama `llama3.2` |
+| Visualization | PCA 16D → 2D |
+
+---
+
+## Setup
+
+### Prerequisites
+
+| Tool | Version |
+|---|---|
+| Java JDK | 17+ |
+| Git | Any |
+| Ollama | Latest, 8 GB RAM recommended |
+
+### 1. Verify Java
 
 ```powershell
 java -version
 javac -version
 ```
 
-If you don't have Java installed, download and install OpenJDK or Oracle JDK from **https://adoptium.net/** or **https://www.oracle.com/java/technologies/downloads/**.
+Install from https://adoptium.net/ if missing.
 
----
+### 2. Install Ollama and Pull Models
 
-### Step 2 — Install Git
-
-1. Go to **https://git-scm.com/download/win** and download Git for Windows
-2. Run the installer with default settings
-3. Verify in PowerShell:
-```powershell
-git --version
-```
-
----
-
-### Step 3 — Install Ollama (Local AI Models)
-
-1. Go to **https://ollama.com** and click **Download for Windows**
-2. Run the installer
-3. Ollama starts automatically in the system tray
-4. Open **PowerShell** and pull the two required models:
+Download from https://ollama.com, then:
 
 ```powershell
 ollama pull nomic-embed-text
-```
-*(~274 MB — this is the embedding model)*
-
-```powershell
 ollama pull llama3.2
-```
-*(~2 GB — this is the language model)*
-
-5. Verify Ollama is running:
-```powershell
 ollama list
 ```
-You should see both models listed.
 
-> **Minimum specs for Ollama:** 8GB RAM recommended. The models will use ~3GB total.
-
----
-
-### Step 4 — Clone the Repository
-
-Open **PowerShell** and run:
+### 3. Clone
 
 ```powershell
-git clone https://github.com/YOUR_USERNAME/VectorDB.git
-cd VectorDB
+git clone https://github.com/krishkantrai27/Vector_AI.git
+cd Vector_AI
 ```
 
----
-
-### Step 5 — Run the Java Server
-
-Inside the `VectorDB` folder, you can run directly with Java:
+### 4. Run
 
 ```powershell
 javac Main.java
 java Main
 ```
 
-*(Or on Java 11+, you can simply run `java Main.java` directly!)*
+Or directly:
 
-You should see:
+```powershell
+java Main.java
+```
+
+Expected output:
+
 ```
 === VectorDB Engine (Java) ===
 http://localhost:8080
@@ -141,86 +384,76 @@ Ollama: ONLINE
 Server listening on port 8080...
 ```
 
-**Open your browser** and go to:
-```
-http://localhost:8080
+Open http://localhost:8080
+
+```mermaid
+flowchart LR
+    A["Install Java"] --> B["Install Ollama"]
+    B --> C["Pull 2 models"]
+    C --> D["Clone repo"]
+    D --> E["java Main.java"]
+    E --> F["Open localhost:8080"]
 ```
 
 ---
 
-## Using the Application
+## Usage
 
-### Tab 1: Search (Demo Vectors)
+### Tab 1 — Search
 
-- Type any concept in the search box: `binary tree`, `sushi`, `basketball`, `calculus`
-- Choose your algorithm: **HNSW**, **KD-Tree**, or **Brute Force**
-- Choose distance metric: **Cosine**, **Euclidean**, or **Manhattan**
-- Click **⚡ SEARCH** — results appear with distances, the matching point glows on the scatter plot
-- Click **▶ COMPARE ALL ALGOS** to run all 3 algorithms and compare their speed
+1. Enter a concept: `binary tree`, `sushi`, `basketball`, `calculus`
+2. Pick algorithm: HNSW / KD-Tree / Brute Force
+3. Pick metric: Cosine / Euclidean / Manhattan
+4. Click **SEARCH** — results with distances, match glows on scatter plot
+5. Click **COMPARE ALL ALGOS** — speed comparison of all three
 
-**The scatter plot** shows all 20 vectors projected to 2D using PCA. Notice how the 4 semantic categories (CS, Math, Food, Sports) form distinct clusters — this is what "semantic similarity" looks like visually.
+### Tab 2 — Documents
 
-### Tab 2: Documents (Real Embeddings)
+1. Enter a title
+2. Paste text
+3. Click **EMBED & INSERT**
+4. Text is split into overlapping 250-word chunks, each embedded and indexed in HNSW
 
-This uses Ollama to generate **real 768-dimensional embeddings** from any text.
+### Tab 3 — Ask AI
 
-1. Type a title (e.g., `Operating Systems Notes`)
-2. Paste any text — lecture notes, textbook paragraphs, Wikipedia articles
-3. Click **⚡ EMBED & INSERT**
-4. Long documents are automatically split into overlapping 250-word chunks
-5. Each chunk gets its own embedding and is stored in a separate HNSW index
-
-### Tab 3: Ask AI (RAG Pipeline)
-
-1. Make sure you have inserted some documents in Tab 2 first
-2. Type a question about your documents
-3. Click **🤖 ASK AI**
-
-What happens behind the scenes:
-```
-1. Your question → embedded with nomic-embed-text (768D vector)
-2. HNSW search → finds 3 most semantically similar chunks
-3. Retrieved chunks → sent as context to llama3.2
-4. llama3.2 → generates an answer based only on your documents
-```
-
-The answer streams in with a typewriter effect. Click the **context chips** to see exactly which chunks the AI used.
+1. Insert documents first
+2. Type a question
+3. Click **ASK AI**
+4. Answer streams in; click context chips to inspect retrieved chunks
 
 ---
 
-## REST API Reference
+## REST API
 
-The server exposes a full REST API at `http://localhost:8080`.
+Base URL: `http://localhost:8080`
 
-### Demo Vector Endpoints
+### Demo Vectors
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/search?v=f1,f2,...&k=5&metric=cosine&algo=hnsw` | K-NN search |
-| `POST` | `/insert` | Insert a demo vector |
-| `DELETE` | `/delete/:id` | Delete by ID |
-| `GET` | `/items` | List all demo vectors |
-| `GET` | `/benchmark?v=...&k=5&metric=cosine` | Compare all 3 algorithms |
-| `GET` | `/hnsw-info` | HNSW graph structure and layer stats |
-| `GET` | `/stats` | Database statistics |
+| GET | `/search?v=f1,f2,...&k=5&metric=cosine&algo=hnsw` | K-NN search |
+| POST | `/insert` | Insert demo vector |
+| DELETE | `/delete/:id` | Delete by ID |
+| GET | `/items` | List all vectors |
+| GET | `/benchmark?v=...&k=5&metric=cosine` | Compare 3 algorithms |
+| GET | `/hnsw-info` | Graph structure, layer stats |
+| GET | `/stats` | Database statistics |
 
-### Document & RAG Endpoints
+### Documents and RAG
 
 | Method | Endpoint | Body | Description |
 |---|---|---|---|
-| `POST` | `/doc/insert` | `{"title":"...","text":"..."}` | Embed and store document |
-| `GET` | `/doc/list` | — | List all stored documents |
-| `DELETE` | `/doc/delete/:id` | — | Delete document chunk |
-| `POST` | `/doc/ask` | `{"question":"...","k":3}` | RAG: retrieve + generate |
-| `GET` | `/status` | — | Ollama status and model info |
+| POST | `/doc/insert` | `{"title":"...","text":"..."}` | Embed and store |
+| GET | `/doc/list` | — | List chunks |
+| DELETE | `/doc/delete/:id` | — | Delete chunk |
+| POST | `/doc/ask` | `{"question":"...","k":3}` | Retrieve + generate |
+| GET | `/status` | — | Ollama status |
 
-### Example: Search via curl
+### Examples
 
 ```powershell
 curl "http://localhost:8080/search?v=0.9,0.8,0.7,0.6,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1&k=3&metric=cosine&algo=hnsw"
 ```
-
-### Example: Ask a question via curl
 
 ```powershell
 curl -X POST http://localhost:8080/doc/ask `
@@ -233,76 +466,40 @@ curl -X POST http://localhost:8080/doc/ask `
 ## Project Structure
 
 ```
-VectorDB/
-├── Main.java       ← Java backend (HNSW, KD-Tree, BruteForce, REST API, RAG)
-├── index.html      ← Frontend (PCA scatter plot, chat UI, benchmark)
-└── README.md       ← This file
-```
-
-### Architecture (Main.java)
-
-```
-BruteForce          O(N·d)      Exact, baseline
-KDTree              O(log N)    Exact, axis-aligned partitioning
-HNSW                O(log N)    Approximate, multilayer small-world graph
-
-VectorDB            Unified interface over all 3 (16D demo vectors)
-DocumentDB          HNSW-only index for real Ollama embeddings (768D)
-OllamaClient        HTTP client → /api/embeddings + /api/generate
+Vector_AI/
+├── Main.java       Backend: HNSW, KD-Tree, BruteForce, REST API, RAG
+├── index.html      Frontend: PCA plot, chat UI, benchmark
+└── README.md
 ```
 
 ---
 
-## Algorithm Deep Dive
-
-### HNSW (Hierarchical Navigable Small World)
-
-Nodes are inserted into a multilayer graph. Each node randomly gets assigned a maximum layer. Layer 0 has all nodes with many connections; higher layers have fewer nodes (exponentially fewer) with longer-range connections.
-
-**Insert:** Start at the top layer, greedily find the nearest node, drop a layer, repeat. At each layer from your assigned max down to 0, run a beam search (ef_construction=200) and connect to the M nearest neighbors bidirectionally.
-
-**Search:** Same greedy descent from top layer. At layer 0, expand to ef nearest candidates using a priority queue.
-
-**Why it's fast:** The upper layers act like a highway — you quickly get to the right neighborhood, then zoom in at layer 0.
-
-### KD-Tree (K-Dimensional Tree)
-
-Binary space partitioning. Each node splits space along one dimension (cycling through all dimensions). Search prunes entire subtrees when the closest possible point in that subtree can't beat the current best — the "ball within hyperslab" check.
-
-**Weakness:** Degrades with high dimensions (curse of dimensionality). Works well for ≤20D, becomes close to brute force at 768D.
-
-### Why HNSW Wins at High Dimensions
-
-KD-Tree pruning relies on axis-aligned distance bounds. In high dimensions, almost all the space is near the boundary of the hypersphere — no subtrees get pruned. HNSW's graph-based approach doesn't have this problem.
-
----
-
-## Common Issues
+## Troubleshooting
 
 | Problem | Fix |
 |---|---|
-| `Ollama: OFFLINE` in header | Run `ollama serve` in a terminal |
-| Embedding takes forever | Ollama is downloading the model on first use, wait 2 min |
-| `java: command not found` | Ensure Java JDK 17+ is installed and in your PATH |
-| Port 8080 already in use | Kill the process: `netstat -ano \| findstr 8080` then `taskkill /PID <pid> /F` |
-| LLM answer is slow | Normal — llama3.2 takes 10–30s on a laptop CPU. Use llama3.2:1b for faster answers |
+| `Ollama: OFFLINE` | Run `ollama serve` |
+| First embed very slow | Model loading, wait ~2 min |
+| `java: command not found` | Add JDK 17+ to PATH |
+| Port 8080 busy | `netstat -ano \| findstr 8080` then `taskkill /PID <pid> /F` |
+| Slow LLM answers | Use `llama3.2:1b` |
 
-### Use a Smaller/Faster LLM
-
-If llama3.2 is too slow on your laptop, switch to the 1B model:
+Faster model:
 
 ```powershell
 ollama pull llama3.2:1b
 ```
 
-Then edit [Main.java](Main.java) line where `genModel` is set:
+In `Main.java`:
+
 ```java
-public String genModel = "llama3.2:1b";   // change this
+public String genModel = "llama3.2:1b";
 ```
+
 Recompile and restart.
 
 ---
 
 ## License
 
-MIT — use this however you want.
+MIT
