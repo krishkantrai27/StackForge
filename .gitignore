@@ -19,10 +19,19 @@ bin/
 .agent/
 .agents/
 .gsd/
+adapters/
+docs/
+scripts/
+GSD-STYLE.md
+PROJECT_RULES.md
+model_capabilities.yaml
 
 # Environment files
 .env
 .env.*
+
+# Testing / Data files
+*.json
 
 # OS files
 .DS_Store
