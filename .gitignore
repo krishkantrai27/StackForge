@@ -25,3 +25,15 @@ bin/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Agent and project metadata files
+.agent/
+.agents/
+.gemini/
+.gsd/
+adapters/
+docs/
+scripts/
+GSD-STYLE.md
+PROJECT_RULES.md
+model_capabilities.yaml
