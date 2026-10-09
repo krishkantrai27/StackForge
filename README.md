@@ -1,4 +1,4 @@
-# Vector_AI — Vector Database + RAG Engine from Scratch in Java
+# StackForge — Vector Database + RAG Engine from Scratch in Java
 
 Zero-dependency **vector database** in pure Java. **HNSW**, **KD-Tree** and **Brute Force** search side by side, live web UI with PCA visualization, and a **RAG pipeline** over local LLMs via Ollama.
 
