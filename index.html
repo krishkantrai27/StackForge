@@ -3,12 +3,11 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>VectorDB — HNSW + RAG</title>
+  <title>StackForge — HNSW + RAG</title>
   <link rel="icon" href="data:,">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
-
     :root {
       --bg: #f8f9fa;
       --card: #ffffff;
@@ -279,13 +278,15 @@
       cursor: pointer;
       text-align: center;
     }
-    
+
     .algo-btn:first-child {
       border-radius: 4px 0 0 4px;
     }
+
     .algo-btn:last-child {
       border-radius: 0 4px 4px 0;
     }
+
     .algo-btn:not(:first-child) {
       margin-left: -1px;
     }
@@ -630,13 +631,13 @@
       flex-shrink: 0;
     }
 
-    
+
 
     .typing::after {
       content: '▋';
     }
 
-    
+
 
     /* ── TOOLTIP ── */
     #tip {
@@ -665,7 +666,7 @@
       background: #adb5bd;
       border-radius: 3px;
     }
-    
+
     ::-webkit-scrollbar-thumb:hover {
       background: #6c757d;
     }
@@ -677,14 +678,47 @@
       --text: #c9d1d9;
       --muted: #8b949e;
     }
-    body.dark .center-panel { background: #010409; }
-    body.dark .chat-q { background: #161b22; }
-    body.dark .chat-a { background: #0d1117; }
-    body.dark .rcat, body.dark .ctx-chip, body.dark .ctx-expand, body.dark .ollama-status { background: #161b22; }
-    body.dark #vecCvs { background: #0d1117; }
-    body.dark input[type=text], body.dark select, body.dark textarea { background: #0d1117; border-color: #30363d; color: #c9d1d9; }
-    body.dark .btn-s { background: #21262d; color: #c9d1d9; border-color: #30363d; }
-    body.dark .btn-s:hover { background: #30363d; }
+
+    body.dark .center-panel {
+      background: #010409;
+    }
+
+    body.dark .chat-q {
+      background: #161b22;
+    }
+
+    body.dark .chat-a {
+      background: #0d1117;
+    }
+
+    body.dark .rcat,
+    body.dark .ctx-chip,
+    body.dark .ctx-expand,
+    body.dark .ollama-status {
+      background: #161b22;
+    }
+
+    body.dark #vecCvs {
+      background: #0d1117;
+    }
+
+    body.dark input[type=text],
+    body.dark select,
+    body.dark textarea {
+      background: #0d1117;
+      border-color: #30363d;
+      color: #c9d1d9;
+    }
+
+    body.dark .btn-s {
+      background: #21262d;
+      color: #c9d1d9;
+      border-color: #30363d;
+    }
+
+    body.dark .btn-s:hover {
+      background: #30363d;
+    }
   </style>
 </head>
 
@@ -694,7 +728,8 @@
     <h1>StackForge</h1>
     <span class="badge" id="ollamaBadge">OLLAMA…</span>
     <span id="statsLabel">loading…</span>
-    <button id="themeToggle" class="btn-s" style="width:auto; margin-left:12px; padding:4px 12px; font-size:11px;">Dark Theme</button>
+    <button id="themeToggle" class="btn-s" style="width:auto; margin-left:12px; padding:4px 12px; font-size:11px;">Dark
+      Theme</button>
   </header>
 
   <div class="layout">
@@ -704,7 +739,7 @@
       <div>
         <div class="sec">Query (Demo Vectors)</div>
         <div style="display:flex;flex-direction:column;gap:6px">
-          <input type="text" id="qInput" placeholder="binary tree, sushi, basketball…" />
+          <input type="text" id="qInput" placeholder="Green Tea, Mango, Cricket" />
           <button class="btn-p" onclick="runSearch()">⚡ SEARCH</button>
         </div>
       </div>
@@ -1022,7 +1057,7 @@
       }
       if (!pcaPoints.length) {
         ctx.fillStyle = '#1a1a38'; ctx.font = '13px Fira Code,monospace'; ctx.textAlign = 'center';
-        ctx.fillText('Connecting to VectorDB…', sc.width / 2, sc.height / 2); ctx.textAlign = 'left';
+        ctx.fillText('Connecting to StackForge…', sc.width / 2, sc.height / 2); ctx.textAlign = 'left';
       }
       pulse += 0.05;
       requestAnimationFrame(drawFrame);
